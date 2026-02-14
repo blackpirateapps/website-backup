@@ -1,5 +1,6 @@
 import TriggerButton from '@/components/TriggerButton';
 import ArchiveList from '@/components/ArchiveList';
+import WorkflowStatus from '@/components/WorkflowStatus';
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
 
       <main>
         <h2 className="section-title">Snapshots</h2>
+        <WorkflowStatus />
         <ArchiveList />
       </main>
 
