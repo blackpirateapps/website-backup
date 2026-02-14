@@ -1,0 +1,90 @@
+name: Manual Archive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      - name: Generate Timestamp
+        run: echo "TIMESTAMP=$(date -u +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+
+      - name: Create Archive Directory
+        run: mkdir -p archives/${{ env.TIMESTAMP }}
+
+      - name: Take Screenshot
+        run: |
+          node -e "
+          const puppeteer = require('puppeteer');
+          (async () => {
+            const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1280, height: 800 });
+            await page.goto('https://www.blackpiratex.com/', { waitUntil: 'networkidle0', timeout: 60000 });
+            await page.screenshot({ path: 'archives/${{ env.TIMESTAMP }}/screenshot.png', fullPage: true });
+            await browser.close();
+          })();
+          "
+
+      - name: Download Site with wget
+        run: |
+          wget --mirror \
+            --convert-links \
+            --adjust-extension \
+            --page-requisites \
+            --no-parent \
+            --reject "*.woff2,*.woff,*.ttf,*.eot" \
+            --timeout=30 \
+            --tries=3 \
+            -P archives/${{ env.TIMESTAMP }}/site \
+            https://www.blackpiratex.com/ || true
+
+      - name: Generate metadata.json
+        run: |
+          SIZE_BYTES=$(du -sb archives/${{ env.TIMESTAMP }} | cut -f1)
+          SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1048576" | bc)
+          COUNT=$(find archives/${{ env.TIMESTAMP }} -type f | wc -l)
+          cat > archives/${{ env.TIMESTAMP }}/metadata.json << EOF
+          {
+            "url": "https://www.blackpiratex.com/",
+            "snapshot_date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "file_count": $COUNT,
+            "size_mb": $SIZE_MB,
+            "timestamp": "${{ env.TIMESTAMP }}"
+          }
+          EOF
+
+      - name: Update index.json
+        run: |
+          if [ ! -f index.json ]; then echo '{"archives":[]}' > index.json; fi
+
+          SIZE_BYTES=$(du -sb archives/${{ env.TIMESTAMP }} | cut -f1)
+          SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1048576" | bc)
+
+          jq --arg id "${{ env.TIMESTAMP }}" \
+             --arg date "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+             --arg screenshot "https://blackpirateapps.github.io/archive-storage/archives/${{ env.TIMESTAMP }}/screenshot.png" \
+             --arg url "https://blackpirateapps.github.io/archive-storage/archives/${{ env.TIMESTAMP }}/site/www.blackpiratex.com/index.html" \
+             --argjson size_mb "$SIZE_MB" \
+             '.archives = [{"id": $id, "date": $date, "screenshot": $screenshot, "url": $url, "size_mb": $size_mb}] + .archives' \
+             index.json > index.tmp && mv index.tmp index.json
+
+      - name: Commit and Push
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add .
+          git commit -m "Archive snapshot ${{ env.TIMESTAMP }}"
+          git push
