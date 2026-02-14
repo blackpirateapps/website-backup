@@ -16,7 +16,7 @@ jobs:
           node-version: '20'
 
       - name: Install Puppeteer
-        run: npx puppeteer browsers install chrome
+        run: npm install puppeteer
 
       - name: Generate Timestamp
         run: echo "TIMESTAMP=$(date -u +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
