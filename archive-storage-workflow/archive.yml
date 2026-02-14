@@ -81,6 +81,10 @@ jobs:
              '.archives = [{"id": $id, "date": $date, "screenshot": $screenshot, "url": $url, "size_mb": $size_mb}] + .archives' \
              index.json > index.tmp && mv index.tmp index.json
 
+      - name: Clean up build artifacts
+        run: |
+          rm -rf node_modules package.json package-lock.json
+
       - name: Commit and Push
         run: |
           git config user.name "GitHub Action"
