@@ -16,6 +16,7 @@ interface WorkflowStatus {
 export default function WorkflowStatus() {
     const [data, setData] = useState<WorkflowStatus | null>(null);
     const [polling, setPolling] = useState(false);
+    const [nowMs, setNowMs] = useState(() => Date.now());
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -33,8 +34,18 @@ export default function WorkflowStatus() {
     }, []);
 
     useEffect(() => {
-        fetchStatus();
+        const timer = setTimeout(() => {
+            void fetchStatus();
+        }, 0);
+        return () => clearTimeout(timer);
     }, [fetchStatus]);
+
+    useEffect(() => {
+        const ticker = setInterval(() => {
+            setNowMs(Date.now());
+        }, 1000);
+        return () => clearInterval(ticker);
+    }, []);
 
     useEffect(() => {
         if (!polling) return;
@@ -50,7 +61,7 @@ export default function WorkflowStatus() {
 
     // Don't show completed runs older than 5 minutes
     if (data.status === 'completed' && data.updated_at) {
-        const age = Date.now() - new Date(data.updated_at).getTime();
+        const age = nowMs - new Date(data.updated_at).getTime();
         if (age > 5 * 60 * 1000) return null;
     }
 
@@ -60,7 +71,7 @@ export default function WorkflowStatus() {
             : 0;
 
     const elapsed = data.started_at
-        ? formatElapsed(new Date(data.started_at))
+        ? formatElapsed(new Date(data.started_at), nowMs)
         : '';
 
     return (
@@ -113,8 +124,8 @@ export default function WorkflowStatus() {
     );
 }
 
-function formatElapsed(start: Date): string {
-    const seconds = Math.floor((Date.now() - start.getTime()) / 1000);
+function formatElapsed(start: Date, nowMs: number): string {
+    const seconds = Math.floor((nowMs - start.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
